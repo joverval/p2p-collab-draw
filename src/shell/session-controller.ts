@@ -5,9 +5,10 @@
 
 import { P2PRoom } from '@joverval/p2p-collab';
 import type { Room } from '@joverval/p2p-collab';
+import * as Y from 'yjs';
 import { encodeChat, encodeStructuredChat, encodeYjs, decodeMessage } from './protocol/message-envelope';
 import type { Participant } from './participants/participants-controller';
-import type { RoomSnapshot } from '../shared/types';
+import type { RoomSnapshot, DrawElement } from '../shared/types';
 import { SignalingClient } from './signaling-client';
 
 export type ConnectionState = 'idle' | 'signaling' | 'negotiating' | 'connected' | 'reconnecting' | 'failed' | 'closed';
@@ -88,6 +89,55 @@ export class SessionController {
 
   get participants(): Participant[] { return this._participants; }
 
+  /** Apply a Yjs encoded update to the local Y.Doc. Y.Array observer fires onElementsChanged. */
+  applyYjsUpdate(data: Uint8Array): void {
+    try {
+      Y.applyUpdate(this._ydoc, data, 'remote');
+    } catch { /* ignore malformed updates */ }
+  }
+
+  /** Read current elements from Yjs state, optionally with a transaction. */
+  getElementsSnapshot(): DrawElement[] {
+    return this._elementsArray.toArray().map(m => m.toJSON() as DrawElement);
+  }
+
+  /** Commit a DrawElement to the shared Yjs state. Broadcast handled by ydoc.on('update'). */
+  commitElement(element: DrawElement): void {
+    this._ydoc.transact(() => {
+      const ymap = new Y.Map();
+      for (const [key, value] of Object.entries(element)) {
+        ymap.set(key, value);
+      }
+      this._elementsArray.push([ymap]);
+    });
+  }
+
+  /** Remove the last element from the shared Yjs state. Broadcast handled by ydoc.on('update'). */
+  undoLastElement(): void {
+    if (this._elementsArray.length === 0) return;
+    this._ydoc.transact(() => {
+      this._elementsArray.delete(this._elementsArray.length - 1, 1);
+    });
+  }
+
+  /** Remove all elements from the shared Yjs state. Broadcast handled by ydoc.on('update'). */
+  clearElements(): void {
+    if (this._elementsArray.length === 0) return;
+    this._ydoc.transact(() => {
+      this._elementsArray.delete(0, this._elementsArray.length);
+    });
+  }
+
+  /** Send the full Yjs state as a binary update. */
+  sendFullState(): void {
+    const update = Y.encodeStateAsUpdate(this._ydoc);
+    this.room?.send(encodeYjs(update));
+  }
+
+  // ── Yjs shared state (draw elements) ──
+  private _ydoc = new Y.Doc();
+  private _elementsArray: Y.Array<Y.Map<any>> = this._ydoc.getArray('elements');
+
   // Callbacks
   onLog?: (type: string, text: string) => void;
   onPendingRequest?: (request: { email: string; token: string; offerId: string; answerB64: string }) => void;
@@ -100,11 +150,21 @@ export class SessionController {
   onRoomState?: (snapshot: RoomSnapshot) => void;
   onRoleChanged?: (isHost: boolean, hostEmail: string) => void;
   onInviteChanged?: (token: string, shareUrl: string) => void;
+  onElementsChanged?: (elements: DrawElement[]) => void;
   getEmail?: () => string;
   setConnected?: (v: boolean) => void;
 
   constructor() {
     this._baseUrl = window.location.href.split('#')[0];
+    // ponytail: ydoc.on('update') captures incremental diffs from transactions — bytes not kilobytes
+    this._ydoc.on('update', (update: Uint8Array, origin: any) => {
+      if (origin !== 'remote') {
+        this.room?.send(encodeYjs(update));
+      }
+    });
+    this._elementsArray.observe(() => {
+      this.onElementsChanged?.(this.getElementsSnapshot());
+    });
     this.registerPermanentHandlers();
   }
 
@@ -237,6 +297,7 @@ export class SessionController {
       if (!(data instanceof Uint8Array)) return;
       const d = decodeMessage(data);
       if (d.type === 'yjs') {
+        this.applyYjsUpdate(d.update);
         this.onFeatureData?.(data, peerId);
         r.broadcastExcept(data, peerId);
       } else if (d.type === 'chat-control') {
@@ -427,6 +488,7 @@ export class SessionController {
       if (!(data instanceof Uint8Array)) return;
       const d = decodeMessage(data);
       if (d.type === 'yjs') {
+        this.applyYjsUpdate(d.update);
         this.onFeatureData?.(data, 'host');
       } else if (d.type === 'chat-control') {
         const msg = d.control.message;
