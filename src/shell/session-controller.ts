@@ -237,7 +237,7 @@ export class SessionController {
       if (!(data instanceof Uint8Array)) return;
       const d = decodeMessage(data);
       if (d.type === 'yjs') {
-        this.onFeatureData?.(data, peerId);
+        this.onFeatureData?.(d.update, peerId);
         r.broadcastExcept(data, peerId);
       } else if (d.type === 'chat-control') {
         const msg = d.control.message;
@@ -427,7 +427,7 @@ export class SessionController {
       if (!(data instanceof Uint8Array)) return;
       const d = decodeMessage(data);
       if (d.type === 'yjs') {
-        this.onFeatureData?.(data, 'host');
+        this.onFeatureData?.(d.update, 'host');
       } else if (d.type === 'chat-control') {
         const msg = d.control.message;
         this.onChatMessage?.(msg.senderEmail || 'Host', msg.text, msg.senderRole);
