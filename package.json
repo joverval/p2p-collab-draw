@@ -24,13 +24,11 @@
   },
   "dependencies": {
     "@joverval/p2p-collab": "file:../p2p-collab",
-    "dompurify": "^3.4.12",
     "y-websocket": "^1.5.2",
     "yjs": "^13.6.31"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
-    "@types/dompurify": "^3.2.0",
     "@vitest/coverage-v8": "^4.1.10",
     "jsdom": "^29.1.1",
     "typescript": "^7.0.2",
