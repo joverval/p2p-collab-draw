@@ -1,5 +1,5 @@
-// app.ts — composition root for p2p-collab-draw
-// Wires shell controllers + Canvas placeholder
+// app.ts -- composition root for p2p-collab-draw
+// Wires shell controllers + CanvasFeature with local-first drawing
 
 import './style.css';
 import { $ } from './shared/dom';
@@ -13,7 +13,7 @@ import { setupToolHandler } from './features/canvas/tool-handler';
 import type { DrawElement } from './shared/types';
 
 declare const __COMMIT_SHA__: string;
-console.log('p2p-collab-draw — built', __COMMIT_SHA__);
+console.log('p2p-collab-draw -- built', __COMMIT_SHA__);
 
 export function createApplication() {
   const chat = new ChatController();
@@ -25,13 +25,6 @@ export function createApplication() {
   const canvas = new CanvasFeature();
 
   let email = '';
-  let canvasReady = false;
-
-  // ── P2P connected state ──
-  session.setConnected = (v) => {
-    p2pConnected = v;
-    if (v) ensureCanvasVisible();
-  };
 
   // ── Helper ──
   function setTextContent(id: string, text: string) {
@@ -39,17 +32,12 @@ export function createApplication() {
     if (el) el.textContent = text;
   }
 
-  // ── Chat send wiring ──
-  panel.setSendChat((text: string) => {
-    chat.addLog(isHost ? 'host' : 'peer', text, email);
-    session.sendChatMessage(text);
-  });
+  // ── P2P connected state ──
+  session.setConnected = (v) => {
+    p2pConnected = v;
+  };
 
-  function updateTopBar() {
-    $('topbar').style.display = 'flex';
-    ($('user-count') as HTMLElement).textContent = String(participants.userCount());
-  }
-
+  // ── UI: update topbar role + controls ──
   function applyRoleState(host: boolean, _hostEmail: string) {
     isHost = host;
 
@@ -63,14 +51,12 @@ export function createApplication() {
     setTextContent('topbar-role', host ? '👑 Host' : '👤 Peer');
 
     panel.refresh();
-    ensureCanvasVisible();
   }
 
-  function ensureCanvasVisible() {
-    if (canvasReady) return;
-    canvasReady = true;
+  // ── Initialize canvas locally (drawable immediately) ──
+  function initCanvas() {
     $('canvas-section').style.display = 'block';
-    // Set explicit dimensions on SVGs once visible
+    // Set explicit dimensions on SVGs
     const stack = $('canvas-stack');
     const bg = $('bg-canvas') as unknown as SVGSVGElement;
     const fg = $('fg-canvas') as unknown as SVGSVGElement;
@@ -82,7 +68,7 @@ export function createApplication() {
       bg as unknown as HTMLElement,
       fg,
       (el: DrawElement) => {
-        el.peerId = email;
+        el.peerId = email || 'local';
         canvas.commitElement(el);
       },
       bg,
@@ -112,9 +98,7 @@ export function createApplication() {
       ($('brush-size-val') as HTMLElement).textContent = String(w);
     });
 
-    chat.addLog('system', '🎨 Canvas ready');
-
-    // Start CanvasFeature with FeatureContext — delegates send/receive to SessionController
+    // Start CanvasFeature in local mode -- sendFeatureData is a no-op until room is created
     canvas.start({
       isHost: () => isHost,
       isConnected: () => p2pConnected,
@@ -123,9 +107,11 @@ export function createApplication() {
       sendControlMessage: (msg) => session.sendControl(msg),
       reportStatus: (msg) => chat.addLog('system', msg),
     });
+
+    chat.addLog('system', '🎨 Canvas ready -- local mode');
   }
 
-  // ── Wire session → controllers ──
+  // ── Wire session -> controllers ──
   session.onRoomState = (snapshot) => {
     participants.replaceSnapshot(snapshot);
     updateTopBar();
@@ -155,10 +141,9 @@ export function createApplication() {
     // ponytail: CanvasFeature wiring (v2)
   };
   session.onConnected = (route) => {
-    chat.addLog('system', `📡 Connected — ${route}`);
+    chat.addLog('system', `📡 Connected -- ${route}`);
     setTextContent('connection-route', route);
     setTextContent('connection-state', 'connected');
-    ensureCanvasVisible();
   };
   session.onRoleChanged = (host, hostEmail) => {
     applyRoleState(host, hostEmail);
@@ -177,6 +162,17 @@ export function createApplication() {
   };
 
   session.getEmail = () => email;
+
+  // ── Chat send wiring ──
+  panel.setSendChat((text: string) => {
+    chat.addLog(isHost ? 'host' : 'peer', text, email);
+    session.sendChatMessage(text);
+  });
+
+  function updateTopBar() {
+    $('topbar').style.display = 'flex';
+    ($('user-count') as HTMLElement).textContent = String(participants.userCount());
+  }
 
   // ── Promote button ──
   participants.onPromote = async (targetEmail) => {
@@ -269,7 +265,7 @@ export function createApplication() {
     canvas.clearElements();
   });
 
-  // ── Create Room ──
+  // ── Create Room: transitions local Yjs state into shared room ──
   ($('create-room-btn') as HTMLButtonElement).addEventListener('click', async () => {
     email = ($('email-input') as HTMLInputElement).value.trim();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { chat.addLog('system', 'ERROR: Please enter a valid email'); return; }
@@ -277,6 +273,11 @@ export function createApplication() {
     ($('email-input') as HTMLInputElement).disabled = true;
 
     const useRelay = await session.createRoom(email);
+    chat.addLog('system', useRelay ? '📡 Room created with relay' : '📡 Room created (manual mode)');
+
+    // Transition UI from local to host
+    setTextContent('topbar-role', '👑 Host');
+    ($('create-room-btn') as HTMLButtonElement).style.display = 'none';
     ($('copy-invite-btn') as HTMLButtonElement).style.display = '';
     ($('copy-invite-btn') as HTMLButtonElement).onclick = () => {
       navigator.clipboard.writeText(session.shareUrl).then(() => { ($('invite-copied') as HTMLElement).style.display = 'inline'; setTimeout(() => ($('invite-copied') as HTMLElement).style.display = 'none', 2000); });
@@ -287,8 +288,6 @@ export function createApplication() {
       };
     };
 
-    ensureCanvasVisible();
-
     if (!useRelay) {
       ($('manual-answer-input') as HTMLInputElement).style.display = '';
       ($('manual-answer-btn') as HTMLButtonElement).style.display = '';
@@ -298,7 +297,7 @@ export function createApplication() {
     }
   });
 
-  // ── Join Room ──
+  // ── Join Room: connects peer, merges remote Yjs state with local drawings ──
   const parsed = session.parseRoomFromUrl();
   if (parsed) {
     ($('create-room-btn') as HTMLButtonElement).textContent = 'Join Room';
@@ -308,6 +307,11 @@ export function createApplication() {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { chat.addLog('system', 'ERROR: Please enter a valid email'); return; }
       ($('email-input') as HTMLInputElement).disabled = true;
       await session.peerAutoJoin(parsed, email);
+      // Transition UI from local to peer (onConnected already fires)
     });
   }
+
+  // ── Initialize canvas immediately (local-first) ──
+  initCanvas();
+  setTextContent('topbar-role', '🎨 Local mode');
 }
