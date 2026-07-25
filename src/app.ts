@@ -7,6 +7,10 @@ import { ChatController } from './shell/chat/chat-controller';
 import { ParticipantsController } from './shell/participants/participants-controller';
 import { PanelController } from './shell/panels/panel-controller';
 import { SessionController } from './shell/session-controller';
+import { CanvasFeature } from './features/canvas/canvas-feature';
+import { renderSvg } from './features/canvas/svg-renderer';
+import { setupToolHandler } from './features/canvas/tool-handler';
+import type { DrawElement } from './shared/types';
 
 declare const __COMMIT_SHA__: string;
 console.log('p2p-collab-draw — built', __COMMIT_SHA__);
@@ -18,6 +22,7 @@ export function createApplication() {
   const session = new SessionController();
   let p2pConnected = false;
   const panel = new PanelController(chat, participants, () => isHost, () => p2pConnected);
+  const canvas = new CanvasFeature();
 
   let email = '';
   let canvasReady = false;
@@ -65,7 +70,59 @@ export function createApplication() {
     if (canvasReady) return;
     canvasReady = true;
     $('canvas-section').style.display = 'block';
+    // Set explicit dimensions on SVGs once visible
+    const stack = $('canvas-stack');
+    const bg = $('bg-canvas') as unknown as SVGSVGElement;
+    const fg = $('fg-canvas') as unknown as SVGSVGElement;
+    bg.setAttribute('viewBox', `0 0 ${stack.clientWidth} ${stack.clientHeight}`);
+    fg.setAttribute('viewBox', `0 0 ${stack.clientWidth} ${stack.clientHeight}`);
+
+    // ── Tool handler setup ──
+    const handler = setupToolHandler(
+      bg as unknown as HTMLElement,
+      fg,
+      (el: DrawElement) => {
+        el.peerId = email;
+        canvas.commitElement(el);
+      },
+      bg,
+    );
+
+    // Wire tool selector buttons
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tool = (btn as HTMLElement).dataset.tool!;
+        handler.setTool(tool as any);
+        ($('brush-size') as HTMLInputElement).value = String(handler.getStrokeWidth());
+        ($('brush-size-val') as HTMLElement).textContent = String(handler.getStrokeWidth());
+      });
+    });
+
+    // Wire color picker
+    ($('color-picker') as HTMLInputElement).addEventListener('input', () => {
+      handler.setColor(($('color-picker') as HTMLInputElement).value);
+    });
+
+    // Wire brush size slider
+    ($('brush-size') as HTMLInputElement).addEventListener('input', () => {
+      const w = Number(($('brush-size') as HTMLInputElement).value);
+      handler.setStrokeWidth(w);
+      ($('brush-size-val') as HTMLElement).textContent = String(w);
+    });
+
     chat.addLog('system', '🎨 Canvas ready');
+
+    // Start CanvasFeature with FeatureContext — delegates send/receive to SessionController
+    canvas.start({
+      isHost: () => isHost,
+      isConnected: () => p2pConnected,
+      sendFeatureData: (data) => session.sendFeature(data),
+      sendFeatureDataToPeer: (peerId, data) => session.sendFeatureDataToPeer(peerId, data),
+      sendControlMessage: (msg) => session.sendControl(msg),
+      reportStatus: (msg) => chat.addLog('system', msg),
+    });
   }
 
   // ── Wire session → controllers ──
@@ -92,7 +149,7 @@ export function createApplication() {
   };
 
   session.onPeerJoin = (_peerId, _peerEmail) => {
-    // ponytail: CanvasFeature wiring (v2)
+    canvas.onPeerJoined?.(_peerId);
   };
   session.onPeerLeave = (_peerEmail) => {
     // ponytail: CanvasFeature wiring (v2)
@@ -106,11 +163,13 @@ export function createApplication() {
   session.onRoleChanged = (host, hostEmail) => {
     applyRoleState(host, hostEmail);
   };
-  session.onFeatureData = (_data, _peerId) => {
-    // ponytail: CanvasFeature.handleFeatureData (v2)
+  session.onFeatureData = (data, peerId) => canvas.handleFeatureData(data, peerId);
+  canvas.onElementsChanged = (elements) => {
+    const bg = $('bg-canvas') as unknown as SVGSVGElement;
+    if (bg) renderSvg(bg, elements);
   };
   session.onControlMessage = (_text) => {
-    // ponytail: CanvasFeature handleControlMessage (v2)
+    // ponytail: control messages routed via CanvasFeature (v2)
   };
   session.onChatMessage = (sender, text, senderRole) => {
     const role: 'host' | 'peer' | 'system' = (senderRole === 'host' || senderRole === 'peer' || senderRole === 'system') ? senderRole : 'peer';
@@ -127,6 +186,88 @@ export function createApplication() {
   // ── Panel open/close ──
   $('panel-close').addEventListener('click', () => panel.close());
   document.querySelectorAll('.panel-btn').forEach(btn => btn.addEventListener('click', () => panel.open((btn as HTMLElement).dataset.panel!)));
+
+  // ── File dropdown ──
+  ($('file-menu-btn') as HTMLElement)?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    ($('file-dropdown') as HTMLElement)?.classList.toggle('show');
+  });
+  document.addEventListener('click', () => ($('file-dropdown') as HTMLElement)?.classList.remove('show'));
+
+  // ── Keyboard shortcut: Ctrl+Z (undo) ──
+  document.addEventListener('keydown', (e) => {
+    if (!e.ctrlKey || e.key !== 'z') return;
+    const t = e.target as HTMLElement;
+    // Don't swallow Ctrl+Z when user is typing in inputs or contentEditable
+    if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable) return;
+    e.preventDefault();
+    canvas.undoLastElement();
+  });
+
+  // ── Export SVG ──
+  ($('save-svg-btn') as HTMLButtonElement)?.addEventListener('click', () => {
+    ($('file-dropdown') as HTMLElement)?.classList.remove('show');
+    const svg = document.getElementById('bg-canvas');
+    if (!svg) return;
+    const clone = svg.cloneNode(true) as SVGSVGElement;
+    // Set explicit dimensions so the file is self-contained
+    const rect = svg.getBoundingClientRect();
+    clone.setAttribute('width', String(rect.width));
+    clone.setAttribute('height', String(rect.height));
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const data = new XMLSerializer().serializeToString(clone);
+    const blob = new Blob([data], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'drawing.svg';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  });
+
+  // ── Export PNG ──
+  ($('save-png-btn') as HTMLButtonElement)?.addEventListener('click', () => {
+    ($('file-dropdown') as HTMLElement)?.classList.remove('show');
+    const svg = document.getElementById('bg-canvas');
+    if (!svg) return;
+    const clone = svg.cloneNode(true) as SVGSVGElement;
+    const rect = svg.getBoundingClientRect();
+    clone.setAttribute('width', String(rect.width));
+    clone.setAttribute('height', String(rect.height));
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    const data = new XMLSerializer().serializeToString(clone);
+    const img = new Image();
+    const svgBlob = new Blob([data], { type: 'image/svg+xml' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      const ctx = canvas.getContext('2d')!;
+      // ponytail: fill white background so PNG isn't transparent
+      ctx.fillStyle = '#1e1e1e';
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      ctx.drawImage(img, 0, 0);
+      canvas.toBlob((pngBlob) => {
+        if (!pngBlob) return;
+        const url = URL.createObjectURL(pngBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'drawing.png';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      }, 'image/png');
+      URL.revokeObjectURL(svgUrl);
+    };
+    img.src = svgUrl;
+  });
+
+  // ── Clear Canvas ──
+  ($('clear-canvas-btn') as HTMLButtonElement)?.addEventListener('click', () => {
+    ($('file-dropdown') as HTMLElement)?.classList.remove('show');
+    if (!confirm('Clear the canvas? This removes all drawings for everyone.')) return;
+    canvas.clearElements();
+  });
 
   // ── Create Room ──
   ($('create-room-btn') as HTMLButtonElement).addEventListener('click', async () => {

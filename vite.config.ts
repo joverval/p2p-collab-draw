@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import { execSync } from 'node:child_process';
 import path from 'path';
@@ -15,6 +16,11 @@ export default defineConfig({
   define: {
     global: 'globalThis',
     __COMMIT_SHA__: JSON.stringify(commitSHA),
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    include: ['tests/**/*.test.ts'],
   },
   resolve: {
     alias: {

@@ -526,6 +526,94 @@ button.handshake-btn:hover { background: #444; }
 }
 
 /* ═══════════════════════════════════════════
+   Left Tool Panel
+   ═══════════════════════════════════════════ */
+#left-panel {
+  width: 72px;
+  min-width: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 8px;
+  background: var(--bg-panel);
+  border-right: 3px solid var(--border);
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+.tool-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.tool-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.tool-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+.tool-btn {
+  background: none;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  font-size: 22px;
+  padding: 6px;
+  cursor: pointer;
+  line-height: 1;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  transition: border-color var(--transition), background var(--transition);
+}
+.tool-btn:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: var(--border-subtle);
+}
+.tool-btn.active {
+  border-color: var(--accent);
+  background: rgba(192,57,43,0.12);
+  color: var(--accent);
+}
+#color-picker {
+  width: 36px;
+  height: 36px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+  padding: 2px;
+}
+#color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+#color-picker::-webkit-color-swatch { border: none; border-radius: 2px; }
+#brush-size {
+  width: 56px;
+  accent-color: var(--accent);
+  writing-mode: vertical-lr;
+  direction: rtl;
+  height: 80px;
+}
+#brush-size-val {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Canvas section takes remaining space */
+#canvas-section {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ═══════════════════════════════════════════
    Accessibility
    ═══════════════════════════════════════════ */
 @media (prefers-reduced-motion: reduce) {

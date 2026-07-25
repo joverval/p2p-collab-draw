@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.jsdelivr.net track.joverval.cl; style-src 'self' 'unsafe-inline'; connect-src 'self' https://relay.joverval.cl wss://relay.joverval.cl ws://localhost:* http://localhost:* https://track.joverval.cl; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; media-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' track.joverval.cl; style-src 'self' 'unsafe-inline'; connect-src 'self' https://relay.joverval.cl wss://relay.joverval.cl ws://localhost:* http://localhost:* https://track.joverval.cl; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; media-src 'none'">
   <title>p2p-collab-draw</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
@@ -18,6 +18,16 @@
 <div id="topbar">
   <div class="topbar-group topbar-left">
     <span id="topbar-title" style="font-weight:600;color:#c9d1d9;">🎨 p2p-collab-draw</span>
+
+    <div class="dropdown">
+      <button class="icon-btn" id="file-menu-btn" title="File">📂</button>
+      <div class="dropdown-menu" id="file-dropdown">
+        <button id="save-svg-btn">💾 Save SVG</button>
+        <button id="save-png-btn">🖼️ Save PNG</button>
+        <button id="clear-canvas-btn">🗑️ Clear Canvas</button>
+      </div>
+    </div>
+
     <input id="email-input" data-testid="email-input" class="compact-input" placeholder="your@email.com">
     <button id="create-room-btn" data-testid="create-room-btn">Create Room</button>
     <span id="topbar-role" data-testid="role-label" style="font-size:12px;color:#8b949e;margin-left:4px;"></span>
@@ -44,12 +54,47 @@
 
 <!-- MAIN + PANEL -->
 <div id="app-layout">
+  <!-- LEFT TOOL PANEL -->
+  <div id="left-panel">
+    <div class="tool-section">
+      <span class="tool-label">Tools</span>
+      <div class="tool-btns">
+        <button class="tool-btn active" data-tool="pencil" title="Pencil">✏️</button>
+        <button class="tool-btn" data-tool="brush" title="Brush">🖌️</button>
+        <button class="tool-btn" data-tool="eraser" title="Eraser">🧹</button>
+      </div>
+    </div>
+    <div class="tool-section">
+      <span class="tool-label">Shapes</span>
+      <div class="tool-btns">
+        <button class="tool-btn" data-tool="rect" title="Rectangle">⬜</button>
+        <button class="tool-btn" data-tool="circle" title="Circle">⭕</button>
+        <button class="tool-btn" data-tool="line" title="Line">📏</button>
+      </div>
+    </div>
+    <div class="tool-section">
+      <span class="tool-label">Fill</span>
+      <div class="tool-btns">
+        <button class="tool-btn" data-tool="fill" title="Fill Bucket">🪣</button>
+      </div>
+    </div>
+    <div class="tool-section">
+      <label class="tool-label" for="color-picker">Color</label>
+      <input type="color" id="color-picker" value="#ffffff">
+    </div>
+    <div class="tool-section">
+      <label class="tool-label" for="brush-size">Size <span id="brush-size-val">1</span></label>
+      <input type="range" id="brush-size" min="1" max="40" value="1">
+    </div>
+  </div>
+
   <div id="main-content">
-    <!-- Canvas placeholder -->
+    <!-- Canvas: two SVG layers — background (committed) + foreground (in-progress stroke) -->
     <div id="canvas-section" style="display:none;">
-      <svg id="drawing-canvas" width="100%" height="100%" style="background:#1e1e1e;border:1px solid #30363d;border-radius:4px;">
-        <text x="50%" y="50%" text-anchor="middle" fill="#8b949e" font-size="16">Canvas — drawing tools (v2)</text>
-      </svg>
+      <div id="canvas-stack" style="position:relative;width:100%;height:100%;">
+        <svg id="bg-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;background:#1e1e1e;border:1px solid #30363d;border-radius:4px;"></svg>
+        <svg id="fg-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></svg>
+      </div>
     </div>
   </div>
 
