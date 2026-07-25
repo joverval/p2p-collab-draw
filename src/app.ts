@@ -25,6 +25,12 @@ export function createApplication() {
   const canvas = new CanvasFeature();
 
   let email = '';
+  let connectionRoute = '';
+
+  function updateInfoMenu() {
+    setTextContent('info-room-id', session.roomId || '--');
+    setTextContent('info-connection-type', connectionRoute || '--');
+  }
 
   // ── Helper ──
   function setTextContent(id: string, text: string) {
@@ -42,14 +48,13 @@ export function createApplication() {
     isHost = host;
 
     ($('copy-invite-btn') as HTMLButtonElement).style.display = host ? '' : 'none';
-    ($('manual-answer-input') as HTMLInputElement).style.display = host ? '' : 'none';
-    ($('manual-answer-btn') as HTMLButtonElement).style.display = host ? '' : 'none';
 
     ($('create-room-btn') as HTMLButtonElement).style.display = 'none';
     ($('email-input') as HTMLInputElement).disabled = true;
 
     setTextContent('topbar-role', host ? '👑 Host' : '👤 Peer');
 
+    updateInfoMenu();
     panel.refresh();
   }
 
@@ -62,6 +67,12 @@ export function createApplication() {
     const fg = $('fg-canvas') as unknown as SVGSVGElement;
     bg.setAttribute('viewBox', `0 0 ${stack.clientWidth} ${stack.clientHeight}`);
     fg.setAttribute('viewBox', `0 0 ${stack.clientWidth} ${stack.clientHeight}`);
+
+    // Keep viewBox in sync when canvas-stack resizes
+    new ResizeObserver(() => {
+      bg.setAttribute('viewBox', `0 0 ${stack.clientWidth} ${stack.clientHeight}`);
+      fg.setAttribute('viewBox', `0 0 ${stack.clientWidth} ${stack.clientHeight}`);
+    }).observe(stack);
 
     // ── Tool handler setup ──
     const handler = setupToolHandler(
@@ -141,9 +152,11 @@ export function createApplication() {
     // ponytail: CanvasFeature wiring (v2)
   };
   session.onConnected = (route) => {
+    connectionRoute = route;
     chat.addLog('system', `📡 Connected -- ${route}`);
     setTextContent('connection-route', route);
     setTextContent('connection-state', 'connected');
+    updateInfoMenu();
   };
   session.onRoleChanged = (host, hostEmail) => {
     applyRoleState(host, hostEmail);
@@ -189,6 +202,18 @@ export function createApplication() {
     ($('file-dropdown') as HTMLElement)?.classList.toggle('show');
   });
   document.addEventListener('click', () => ($('file-dropdown') as HTMLElement)?.classList.remove('show'));
+
+  // ── Info dropdown toggle ──
+  ($('info-menu-btn') as HTMLElement)?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    ($('info-dropdown') as HTMLElement)?.classList.toggle('show');
+  });
+  document.addEventListener('click', () => ($('info-dropdown') as HTMLElement)?.classList.remove('show'));
+
+  // ── Manual answer button (always visible in info menu) ──
+  ($('manual-answer-btn') as HTMLButtonElement).onclick = () => {
+    session.manualAcceptAnswer(session.currentOfferId, ($('manual-answer-input') as HTMLInputElement).value.trim());
+  };
 
   // ── Keyboard shortcut: Ctrl+Z (undo) ──
   document.addEventListener('keydown', (e) => {
@@ -288,13 +313,6 @@ export function createApplication() {
       };
     };
 
-    if (!useRelay) {
-      ($('manual-answer-input') as HTMLInputElement).style.display = '';
-      ($('manual-answer-btn') as HTMLButtonElement).style.display = '';
-      ($('manual-answer-btn') as HTMLButtonElement).onclick = () => {
-        session.manualAcceptAnswer(session.currentOfferId, ($('manual-answer-input') as HTMLInputElement).value.trim());
-      };
-    }
   });
 
   // ── Join Room: connects peer, merges remote Yjs state with local drawings ──

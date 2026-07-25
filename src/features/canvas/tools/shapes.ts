@@ -20,7 +20,14 @@ let _fgSvg: SVGSVGElement | null = null;
 
 function getPos(e: PointerEvent, el: HTMLElement): { x: number; y: number } {
   const rect = el.getBoundingClientRect();
-  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  const svg = el as unknown as SVGSVGElement;
+  const vb = svg.viewBox?.baseVal;
+  const scaleX = (vb && vb.width > 0) ? vb.width / rect.width : 1;
+  const scaleY = (vb && vb.height > 0) ? vb.height / rect.height : 1;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top) * scaleY,
+  };
 }
 
 /** Build preview DrawElement from start point + current point. */
