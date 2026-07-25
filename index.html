@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' cdn.jsdelivr.net track.joverval.cl; style-src 'self' 'unsafe-inline'; connect-src 'self' https://relay.joverval.cl wss://relay.joverval.cl ws://localhost:* http://localhost:* https://track.joverval.cl; img-src 'self' data:; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; media-src 'none'">
+  <title>p2p-collab-draw</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+  <link rel="shortcut icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/src/style.css">
+  <script src="/vendor/simplepeer.min.js"></script>
+  <script data-goatcounter="https://track.joverval.cl/count" async src="https://track.joverval.cl/count.js"></script>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="topbar-group topbar-left">
+    <span id="topbar-title" style="font-weight:600;color:#c9d1d9;">🎨 p2p-collab-draw</span>
+    <input id="email-input" data-testid="email-input" class="compact-input" placeholder="your@email.com">
+    <button id="create-room-btn" data-testid="create-room-btn">Create Room</button>
+    <span id="topbar-role" data-testid="role-label" style="font-size:12px;color:#8b949e;margin-left:4px;"></span>
+    <button id="copy-invite-btn" data-testid="copy-invite-btn" class="handshake-btn" style="display:none;">📋 Copy invite</button>
+    <span id="invite-copied" style="display:none;color:#3fb950;font-size:12px;">Copied!</span>
+    <input id="manual-answer-input" data-testid="answer-input" class="compact-input" placeholder="Paste answer..." style="display:none;">
+    <button id="manual-answer-btn" data-testid="apply-answer-btn" style="display:none;">Apply</button>
+  </div>
+
+  <div style="flex:1;"></div>
+
+  <div class="topbar-group topbar-right">
+    <button class="icon-btn panel-btn" data-panel="info" title="How it works">ℹ️</button>
+    <button class="icon-btn panel-btn" data-panel="users" title="Connected users">
+      <span>👤</span>
+      <span id="user-count">0</span>
+    </button>
+    <button class="icon-btn panel-btn has-notif" data-panel="chat" title="Chat">
+      <span>💬</span>
+      <span class="notif-dot" id="chat-notif"></span>
+    </button>
+  </div>
+</div>
+
+<!-- MAIN + PANEL -->
+<div id="app-layout">
+  <div id="main-content">
+    <!-- Canvas placeholder -->
+    <div id="canvas-section" style="display:none;">
+      <svg id="drawing-canvas" width="100%" height="100%" style="background:#1e1e1e;border:1px solid #30363d;border-radius:4px;">
+        <text x="50%" y="50%" text-anchor="middle" fill="#8b949e" font-size="16">Canvas — drawing tools (v2)</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- UNIFIED RIGHT PANEL -->
+  <div id="right-panel" class="panel-hidden">
+    <div class="panel-header">
+      <span id="panel-title">Panel</span>
+      <button class="icon-btn" id="panel-close">✕</button>
+    </div>
+    <div class="panel-body" id="panel-body"></div>
+  </div>
+</div>
+
+<script type="module" src="/src/main.ts"></script>
+
+<!-- TOAST for pending requests -->
+<div id="toast" data-testid="approval-toast" style="display:none;">
+  <span id="toast-msg"></span>
+  <div class="toast-btns">
+    <button id="toast-approve" data-testid="approve-btn">Approve</button>
+    <button id="toast-reject" data-testid="reject-btn" class="reject-btn">Reject</button>
+  </div>
+</div>
+
+<!-- Hidden diagnostic spans -->
+<span id="connection-route" data-testid="connection-route" style="display:none;"></span>
+<span id="connection-state" data-testid="connection-state" style="display:none;"></span>
+</body>
+</html>
