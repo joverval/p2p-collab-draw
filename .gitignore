@@ -31,3 +31,6 @@ playwright-report
 .cursorrules
 .claude/
 .windsurf/
+.continue/
+diag-*.ts
+diag-*.mjs
