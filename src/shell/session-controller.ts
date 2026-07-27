@@ -237,7 +237,6 @@ export class SessionController {
       if (!(data instanceof Uint8Array)) return;
       const d = decodeMessage(data);
       if (d.type === 'yjs') {
-        console.log(`[session] received yjs update from ${peerId}, ${d.update.length} bytes, seq=${d.seq}`);
         this.onFeatureData?.(d.update, peerId);
         r.broadcastExcept(data, peerId);
       } else if (d.type === 'chat-control') {
@@ -592,7 +591,6 @@ export class SessionController {
     this.publishRoomSnapshot(peers);
   }
 
-  sendFeature(data: Uint8Array) { console.log(`[session] sendFeature: ${data.length}b room=${!!this.room} isHost=${this.room?.isHost}`); this.room?.send(encodeYjs(data)); }
   sendFeatureDataToPeer(peerId: string, data: Uint8Array) { this.room?.sendToPeer(peerId, encodeYjs(data)); }
   sendControl(msg: string) { this.room?.send(encodeChat(msg)); }
   sendChatMessage(text: string) {

@@ -44,9 +44,7 @@ export class CanvasFeature implements CollaborationFeature {
   handleFeatureData(data: Uint8Array, _peerId?: string): void {
     if (!this.ydoc) return;
     try {
-      console.log(`[canvas] applying yjs update: ${data.length} bytes from ${_peerId || 'unknown'}`);
       Y.applyUpdate(this.ydoc, data, 'remote');
-      console.log(`[canvas] yjs update applied successfully`);
     } catch (e) { console.error('[canvas] yjs applyUpdate failed:', e); }
   }
 
