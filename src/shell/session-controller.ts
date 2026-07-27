@@ -591,6 +591,7 @@ export class SessionController {
     this.publishRoomSnapshot(peers);
   }
 
+  sendFeature(data: Uint8Array) { this.room?.send(encodeYjs(data)); }
   sendFeatureDataToPeer(peerId: string, data: Uint8Array) { this.room?.sendToPeer(peerId, encodeYjs(data)); }
   sendControl(msg: string) { this.room?.send(encodeChat(msg)); }
   sendChatMessage(text: string) {
