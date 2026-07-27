@@ -97,9 +97,21 @@ export class SignalingClient implements IceConfigProvider {
   async fetchIceConfig(): Promise<RTCConfiguration> {
     if (this._iceConfig) return this._iceConfig;
     try {
+      console.log('[signaling] fetching ICE config from', `${HTTP_URL}/turn-credentials`);
       const resp = await fetch(`${HTTP_URL}/turn-credentials`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const contentType = resp.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await resp.text();
+        console.error('[signaling] /turn-credentials returned non-JSON (CF challenge?):', text.substring(0, 200));
+        throw new Error('Response is not JSON — likely Cloudflare WAF challenge');
+      }
       const data = await resp.json();
+      const turnCount = (data.iceServers || []).filter((s: any) => {
+        const urls = Array.isArray(s.urls) ? s.urls : [s.urls];
+        return urls.some((u: string) => u.startsWith('turn:') || u.startsWith('turns:'));
+      }).length;
+      console.log(`[signaling] ICE config: ${data.iceServers?.length || 0} servers (${turnCount} TURN), policy=${data.iceTransportPolicy}`);
       const config: RTCConfiguration = {
         iceServers: data.iceServers || [],
         iceCandidatePoolSize: data.iceCandidatePoolSize ?? 2,
@@ -114,8 +126,8 @@ export class SignalingClient implements IceConfigProvider {
       if (!this.hasTurn) {
         console.warn('[signaling] relay /turn-credentials returned no TURN servers with credentials — ICE will use STUN only');
       }
-    } catch {
-      // Fallback if relay API is unavailable — STUN only, no TURN
+    } catch (err) {
+      console.error('[signaling] relay API unavailable:', err instanceof Error ? err.message : err, '— using STUN-only fallback (no TURN)');
       const config: RTCConfiguration = {
         iceServers: [
           { urls: 'stun:stun.l.google.com:19302' },
