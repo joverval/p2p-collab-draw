@@ -20,6 +20,7 @@ export class CanvasFeature implements CollaborationFeature {
     // Broadcast local Yjs deltas via FeatureContext
     this.ydoc.on('update', (update: Uint8Array, origin: any) => {
       if (origin !== 'remote') {
+        console.log(`[canvas] sending yjs update: ${update.length} bytes`);
         ctx.sendFeatureData(update);
       }
     });

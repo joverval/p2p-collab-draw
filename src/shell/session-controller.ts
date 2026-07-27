@@ -237,6 +237,7 @@ export class SessionController {
       if (!(data instanceof Uint8Array)) return;
       const d = decodeMessage(data);
       if (d.type === 'yjs') {
+        console.log(`[session] received yjs update from ${peerId}, ${d.update.length} bytes, seq=${d.seq}`);
         this.onFeatureData?.(d.update, peerId);
         r.broadcastExcept(data, peerId);
       } else if (d.type === 'chat-control') {
