@@ -1,6 +1,6 @@
 {
   "name": "p2p-collab-draw",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Real-time collaborative SVG drawing app with WebRTC P2P and Yjs CRDT",
   "type": "module",
   "scripts": {
